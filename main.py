@@ -1,81 +1,42 @@
-import streamlit as st
 import pandas as pd
+import re
 from datetime import timedelta
 
-st.set_page_config(layout="wide", page_title="Daily Remark Summary", page_icon="📊", initial_sidebar_state="expanded")
-
-# Apply dark mode
-st.markdown(
-    """
-    <style>
-    .reportview-container {
-        background: #2E2E2E;
-        color: white;
-    }
-    .sidebar .sidebar-content {
-        background: #2E2E2E;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-st.title('Daily Remark Summary')
-
-@st.cache_data
-def load_data(uploaded_file):
-    # Load all the sheets into a dictionary of DataFrames
-    xls = pd.ExcelFile(uploaded_file)
-    call_history = pd.read_excel(xls, 'Call History')
-    call_status_summary = pd.read_excel(xls, 'Call Status Summary')
-    call_received_summary = pd.read_excel(xls, 'Call Received Summary')
-    login_logout_activity = pd.read_excel(xls, 'Login Logout Activity')
-    volare_status_summary = pd.read_excel(xls, 'Volare Status Summary')
+# Function to convert time descriptions into seconds
+def convert_to_seconds(time_str):
+    time_str = time_str.lower().strip()
     
-    # Debugging step: Print out the columns in the "Login Logout Activity" sheet
-    st.write("Columns in 'Login Logout Activity' sheet:", login_logout_activity.columns)
-
-    return call_history, call_status_summary, call_received_summary, login_logout_activity, volare_status_summary
-
-uploaded_file = st.sidebar.file_uploader("PREDICTIVE TIME PER AGENTS", type="xlsx")
-
-if uploaded_file is not None:
-    # Load the data from the uploaded file
-    call_history, call_status_summary, call_received_summary, login_logout_activity, volare_status_summary = load_data(uploaded_file)
-
-    # Check if 'Remark By' column exists in the 'call_history' DataFrame
-    if 'Remark By' in call_history.columns:
-        # Filter out unnecessary agents from 'Remark By' column
-        call_history = call_history[~call_history['Remark By'].isin([
-            'FGPANGANIBAN', 'KPILUSTRISIMO', 'BLRUIZ', 'MMMEJIA', 'SAHERNANDEZ', 'GPRAMOS',
-            'JGCELIZ', 'JRELEMINO', 'HVDIGNOS', 'RALOPE', 'DRTORRALBA', 'RRCARLIT', 'MEBEJER',
-            'DASANTOS', 'SEMIJARES', 'GMCARIAN', 'RRRECTO', 'JMBORROMEO', 'EUGALERA', 'JATERRADO'
-        ])]
+    if "second" in time_str:
+        if "few" in time_str:
+            return 5  # Assume 'a few seconds' is 5 seconds
+        return int(re.findall(r'\d+', time_str)[0])  # Extract number of seconds
+    elif "minute" in time_str:
+        if "few" in time_str:
+            return 5 * 60  # Assume 'a few minutes' is 5 minutes
+        elif "an" in time_str:  # "an minute" -> "1 minute"
+            return 1 * 60
+        return int(re.findall(r'\d+', time_str)[0]) * 60  # Extract number of minutes and convert to seconds
+    elif "hour" in time_str:
+        if "an" in time_str:  # "an hour" -> "1 hour"
+            return 1 * 3600
+        return int(re.findall(r'\d+', time_str)[0]) * 3600  # Extract number of hours and convert to seconds
     else:
-        st.warning("'Remark By' column not found in 'Call History' data.")
+        return 0  # Default case for unknown formats, treat as 0 seconds
 
-    # Function to calculate the total time spent per agent
-    def calculate_total_time(df):
-        # Convert the "Connect/Disconnect Date Time" to datetime format
-        df['Connect/Disconnect Date Time'] = pd.to_datetime(df['Connect/Disconnect Date Time'], errors='coerce')
-        
-        # Make sure that the 'Collector' and 'Connect/Disconnect Date Time' columns exist
-        if 'Collector' in df.columns and 'Connect/Disconnect Date Time' in df.columns:
-            # Calculate the time spent per row (difference between Connect and Disconnect times)
-            df['Time Spent'] = df['Connect/Disconnect Date Time'].diff().shift(-1)
-            df['Time Spent'] = df['Time Spent'].fillna(pd.Timedelta(0))  # Replace NaN with 0 time
-        
-            # Sum the time spent per agent (sum times for the same 'Collector')
-            total_time_per_agent = df.groupby('Collector')['Time Spent'].sum()
-            
-            return total_time_per_agent
-        else:
-            st.error('Columns "Collector" or "Connect/Disconnect Date Time" not found in the data.')
-            return None
+# Function to format time in HH:MM:SS
+def format_time(seconds):
+    return str(timedelta(seconds=seconds))
 
-    # Calculate total time for each agent in "Login Logout Activity"
-    total_time_per_agent = calculate_total_time(login_logout_activity)
+# Sample time descriptions
+time_descriptions = [
+    "a few seconds", "6 minutes", "an hour", "a minute", "2 hours", 
+    "12 minutes", "a minute", "a few seconds", "2 hours", "2 hours", 
+    "a few seconds", "6 minutes"
+]
 
-    # Display the total time per agent
-    if total_time_per_agent is not None:
-        st.write("Total Time Per Agent:", total_time_per_agent)
+# Convert and format each time description
+formatted_times = [format_time(convert_to_seconds(time)) for time in time_descriptions]
+
+# Print formatted times
+for original, formatted in zip(time_descriptions, formatted_times):
+    print(f"Original: {original} => Formatted: {formatted}")
