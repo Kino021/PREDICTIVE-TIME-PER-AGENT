@@ -46,7 +46,7 @@ if uploaded_file is not None:
     # Check if 'Remark By' column exists in the 'call_history' DataFrame
     if 'Remark By' in call_history.columns:
         # Filter out unnecessary agents from 'Remark By' column
-        call_history = call_history[~call_history['Remark By'].isin([
+        call_history = call_history[~call_history['Remark By'].isin([ 
             'FGPANGANIBAN', 'KPILUSTRISIMO', 'BLRUIZ', 'MMMEJIA', 'SAHERNANDEZ', 'GPRAMOS',
             'JGCELIZ', 'JRELEMINO', 'HVDIGNOS', 'RALOPE', 'DRTORRALBA', 'RRCARLIT', 'MEBEJER',
             'DASANTOS', 'SEMIJARES', 'GMCARIAN', 'RRRECTO', 'JMBORROMEO', 'EUGALERA', 'JATERRADO'
@@ -61,13 +61,21 @@ if uploaded_file is not None:
         
         # Make sure that the 'Collector' and 'Connect/Disconnect Date Time' columns exist
         if 'Collector' in df.columns and 'Connect/Disconnect Date Time' in df.columns:
-            # Calculate the time spent per row (difference between Connect and Disconnect times)
-            df['Time Spent'] = df['Connect/Disconnect Date Time'].diff().shift(-1)
-            df['Time Spent'] = df['Time Spent'].fillna(pd.Timedelta(0))  # Replace NaN with 0 time
-        
+            # Sort by Collector and Connect/Disconnect Date Time to correctly match Log In and Log Out events
+            df = df.sort_values(by=['Collector', 'Connect/Disconnect Date Time'])
+            
+            # Calculate the time spent per row (difference between consecutive rows of Connect and Disconnect times)
+            df['Time Spent'] = df.groupby('Collector')['Connect/Disconnect Date Time'].diff()
+
+            # Remove any rows where time spent is NaN (first row for each Collector will be NaN)
+            df = df.dropna(subset=['Time Spent'])
+
             # Sum the time spent per agent (sum times for the same 'Collector')
             total_time_per_agent = df.groupby('Collector')['Time Spent'].sum()
-            
+
+            # Convert the time spent to a more readable format (e.g., total hours and minutes)
+            total_time_per_agent = total_time_per_agent.apply(lambda x: str(x))
+
             return total_time_per_agent
         else:
             st.error('Columns "Collector" or "Connect/Disconnect Date Time" not found in the data.')
