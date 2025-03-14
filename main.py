@@ -31,7 +31,7 @@ def load_data(uploaded_file):
     call_received_summary = pd.read_excel(xls, 'Call Received Summary')
     login_logout_activity = pd.read_excel(xls, 'Login Logout Activity')
     volare_status_summary = pd.read_excel(xls, 'Volare Status Summary')
-    
+
     # Debugging step: Print out the columns in the "Login Logout Activity" sheet
     st.write("Columns in 'Login Logout Activity' sheet:", login_logout_activity.columns)
 
@@ -54,26 +54,26 @@ if uploaded_file is not None:
     else:
         st.warning("'Remark By' column not found in 'Call History' data.")
 
-    # Function to calculate the total time spent per agent
+    # Function to calculate the total time spent per agent (sum of durations)
     def calculate_total_time(df):
         # Convert the "Connect/Disconnect Date Time" to datetime format
         df['Connect/Disconnect Date Time'] = pd.to_datetime(df['Connect/Disconnect Date Time'], errors='coerce')
-        
+
         # Make sure that the 'Collector' and 'Connect/Disconnect Date Time' columns exist
         if 'Collector' in df.columns and 'Connect/Disconnect Date Time' in df.columns:
-            # Sort by Collector and Connect/Disconnect Date Time to correctly match Log In and Log Out events
+            # Sort by Collector and Connect/Disconnect Date Time to ensure correct order
             df = df.sort_values(by=['Collector', 'Connect/Disconnect Date Time'])
             
-            # Calculate the time spent per row (difference between consecutive rows of Connect and Disconnect times)
-            df['Time Spent'] = df.groupby('Collector')['Connect/Disconnect Date Time'].diff()
+            # Calculate the time difference between consecutive login/logout times
+            df['Duration'] = df.groupby('Collector')['Connect/Disconnect Date Time'].diff()
 
-            # Remove any rows where time spent is NaN (first row for each Collector will be NaN)
-            df = df.dropna(subset=['Time Spent'])
+            # Remove rows with NaN duration (which happens for the first row per group)
+            df = df.dropna(subset=['Duration'])
 
-            # Sum the time spent per agent (sum times for the same 'Collector')
-            total_time_per_agent = df.groupby('Collector')['Time Spent'].sum()
+            # Sum the total durations for each agent
+            total_time_per_agent = df.groupby('Collector')['Duration'].sum()
 
-            # Convert the time spent to a more readable format (e.g., total hours and minutes)
+            # Convert the total duration to hours and minutes
             total_time_per_agent = total_time_per_agent.apply(lambda x: str(x))
 
             return total_time_per_agent
